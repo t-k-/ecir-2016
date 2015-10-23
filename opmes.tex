@@ -1,0 +1,137 @@
+\documentclass{llncs}
+%
+\usepackage{amsmath}
+\usepackage{multirow}
+
+\usepackage{array}
+\makeatletter
+\newcommand{\thickhline}{%
+    \noalign {\ifnum 0=`}\fi \hrule height 1pt
+    \futurelet \reserved@a \@xhline
+}
+\newcolumntype{"}{@{\hskip\tabcolsep\vrule width 1pt\hskip\tabcolsep}}
+\makeatother
+
+\renewcommand{\arraystretch}{1.6}
+\setlength{\tabcolsep}{12pt}
+
+\usepackage{graphicx}
+
+\usepackage{verbatim}
+
+\begin{document}
+\title{Operation-tree Pruning based Math Expression Search (OPMES): A similarity search engine for mathematical content}
+\author{Wei Zhong and Hui Fang}
+\institute{University of Delaware, Newark, DE, USA \\
+\email{\{zhongwei, hfang\}@udel.edu}}
+\maketitle
+%
+\begin{abstract}
+We have implemented a search engine OPMES, with the objective to better search content in math language.
+OPMES parses \LaTeX\ math content directly into operation tree using a LALR parser, which features a competitively fast indexing speed. 
+Our index is built upon sub-paths of operation tree~\cite{goodsurvey} to enable both structural search ability and search set pruning. 
+Compared to another state-of-art math search engine, OPMES is particularly more efficient in long queries and being able to produce competitively more relevant results for some queries.
+\end{abstract}
+
+\section{Introduction}
+Mathematical content are widely contained by digital document, but major search engines fail to offer the ability to search those content effectively.
+In addition, popular math-aware search engines (e.g. WolframAlpha\footnote{http://www.wolframalpha.com}) are mainly focusing
+%  and SymboLab\footnote{https://www.symbolab.com}
+on computational evaluation of math expressions, without addressing the needs to search similar expressions in related document, which can be particularly useful in identifying a math entity or finding an existing proof for an equation.
+Given its usefulness, we have implemented a similarity search engine~\footnote{Demo page: \url{http://45.79.133.113/opmes} \\Source code: \url{https://github.com/t-k-/OPMES}}
+for mathematical expressions, to better utilize our digitalized mathematics asset. 
+Specifically, it helps user to identify the most relevant math-expressions for a queried expression in already indexed math document.
+Students or scholars who have the need to search mathematical Q\&A website or math-content articles are potential users of this search engine.
+
+Similarity search for mathematical content is not a new topic, conference in this topic is getting increasingly research attention and systems have progressed considerably~\cite{ov}.
+Notable open systems in this research domain include 
+MIaS~\footnote{\url{https://mir.fi.muni.cz/mias/}}, 
+Tangent\footnote{\url{http://saskatoon.cs.rit.edu/tangent/random}},
+and Zentralblatt math\footnote{http://search.mathweb.org/zbl} from MWS.
+Among these, 
+Tangent is the most recently published one, it develops a \textit{symbol pairs} idea~\cite{symbolpairs14,symbolpairs15} to capture relative position information from \textit{symbol layout tree} representation of a math expression.
+On the other hand, our search engine uses \textit{sub-path}~\cite{signifjap} to index structural information from operation tree representation of a math expression, this approach respects overall structure similarity more than a partial match, search results from OPMES will be more strictly structural identical, unless we break a single operation tree into subexpressions.
+Moreover, except text-based math search engine MIaS, both Tangent and MWS use \textit{LaTeXML} tools to transform  markups into MathML format before they can parse into in-memory tree and index, while OPMES directly parses math expressions from \LaTeX\ markups without intermediate transforms. 
+
+\section{System Description}
+Our system consists of five major components: crawler, parser, indexer, searcher and WEB front-end.
+The crawler is responsible to extract pure math mode \LaTeX\ markups for the parser to transform into in-memory operation tree. 
+The parser is a LALR parser implemented using Bison/Flex, all \LaTeX\ control sequences that do not match any pattern of our interested tokens are omitted to speed up the parsing process, 
+as most of them are considered unrelated to math formula semantics (\textbackslash$\text{color}$, \textbackslash$\text{mbox}$ etc.).
+The indexer writes the information extracted from an operation tree into binary files as our index. 
+Specifically, we traverse bottom-up from an operation tree to get ``inverted" sub-paths and index (insert) these sub-paths into a much larger persistent (on-disk) index tree.
+For implementation simplicity, we use file system to realize the index tree, the path name of each directory corresponds to a tokenized inverted sub-path, 
+and any document expression with one of its sub-path matching a directory, is indexed by appending its expression ID (and sub-path symbol) on a single binary file located at that directory.
+The searcher is able to use this index to identify structurally similar document expressions by merging all the IDs from binary files in corresponding directories as well as subdirectories of its query sub-paths in this index.
+By using this index, we are also able to develop a pruning method to eliminate impossible search set thus speed retrieval process, 
+this method is considered to be fully explained in a future paper.
+% i.e. through searching all sub-paths from a query operation tree at the same time, we are able to limit the set of possible indexed expressions being structurally matching with query, to only a subset of our index.
+Upon structurally relevant document expressions are found, the searcher further evaluates symbolic similarity between matching sub-paths of query and document expression, then returns ranked search results based on overall symbolic similarity.
+\begin{figure}
+\begin{minipage}[b]{2.10in}
+\begin{center}
+\raisebox{.25in}{\includegraphics[height=2.3in]{res/search}}
+\\ Search page
+\end{center}
+\end{minipage}
+\hspace*{0in}
+\begin{minipage}[b]{2.20in}
+\begin{center}
+\raisebox{.25in}{\includegraphics[height=2.4in]{res/res}}
+\\ Results page
+\end{center}
+\end{minipage}
+\caption{WEB front-end interface}\label{frontEnd}
+\end{figure}
+Our WEB front-end (figure~\ref{frontEnd}), eventually, presents search results to user with rendered math expressions.
+
+\section{Demonstration Plan}
+In our demo, we first illustrate some key ideas mentioned above.
+ We will choose a simple query, show its operation tree representation in ASCII graph as well as its sub-paths (through the output of parser).
+ Then we demonstrate the structure of our index tree, and walk through the steps and directories where the searcher goes and finds relevant expressions for input query.
+ Users are then free to input arbitrary queries and experience our search engine based on a collection (with over 8 million math expressions scrawled from Math Stack Exchange website) that contains most frequently used and primary math expressions.
+
+Next we try to give a comparison between OPMES and Tangent, from both efficiency and effectiveness perspectives.
+We randomly choose a set of collection available to run indexer over.
+The indexer is able to show  the speed rate of indexing process on the fly, a comparison between OPMES and Tangent on indexing speed will be made.
+It is fair to also address the parsing success rate, which the parser will show to reflect the capability of our parser in terms of dealing with human-created math content.
+Retrieval speed is also compared from the WEB front-end output of Tangent and OPMES, we plan to try a number of random queries with various length, on same collection indexed by both engines. 
+Typically, OPMES and Tangent takes similar time to search short queries (e.g. both search engines spend around 200 ms for searching query expression $y_{k}[n]$), 
+however, OPMES would be much efficient for long queries such as $(S^{T}\mathbf{x})^{T}D(S^{T} \mathbf{x})=1\left(\frac{x-y}{\sqrt{2}}\right)^{2}+9\left(\frac{x+y}{\sqrt{2}} \right)^{2}$ where Tangent consumes over 8~seconds on searching, in contrast to only 32 ms spent by OPMES .
+Lastly, both OPMES and Tangent index a standard collection from NTCIR-11 Wiki Task~\cite{ov} to test effectiveness.
+There are typical queries on which Tangent fails to give as good results as OPMES does, for example, Tangent is giving a reciprocal fraction for some reason, when retrieving query $\dfrac {x+1}x$ (see table~\ref{comp1} for comparison).
+\begin{table}
+\begin{minipage}[b]{4.5in}
+\caption{Search results comparison for query $\dfrac{x+1}x$} 
+\label{comp1}
+\begin{center}
+\renewcommand{\arraystretch}{2.0}
+\begin{tabular}{cccc}
+\multirow{2}{*}{Rank of result} & \multicolumn{2}{c}{Top-3 hits} \\
+\cline{2-3}
+& OPMES & Tangent \\
+\thickhline
+1 & ${\displaystyle{\alpha+1\over\alpha}}$               & $\frac{x}{x+1}\,$        \\ \hline
+2 & ${\displaystyle{\tfrac{n+1}{n}}} $                   & ${x\over x^{2}+1}$       \\ \hline
+3 & ${\displaystyle\textstyle{\frac{1+\varepsilon}{n}}}$ & $x + 1$                  \\ \hline
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+\end{center}
+\end{minipage}
+\end{table}
+We can observe that OPMES tries to match overall structure before it actually compares expressions symbolically, while Tangent may include expressions with only partial match.
+To make a more comprehensive comparison, we use most recent Tangent source code~\footnote{\url{https://www.cs.rit.edu/$\sim$dprl/Software.html\#tangent} (published at July 2015)} 
+to present top-30 results in HTML from both systems for all 100 NTCIR-11 evaluation queries. 
+We will show that, although OPMES produces worse results in queries containing wildcards (due to lack of wildcards support), 
+it is able to generate observably better search results for some queries.
+% (e.g. query ID NTCIR11-Math-11, NTCIR11-Math-17, NTCIR11-Math-35 and NTCIR11-Math-100).
+
+\section{Conclusion}
+We present a math similarity search engine OPMES. It parses \LaTeX\ math content directly and more efficiently, 
+we have implemented the sub-path index with pruning applied to math expression search. 
+We hope OPMES can provide not only an alternative but also a competitive solution to better search math content. 
+
+\bibliographystyle{unsrt}
+\bibliography{mybib}
+
+\end{document}
